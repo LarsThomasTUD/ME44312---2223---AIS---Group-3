@@ -29,6 +29,7 @@ for filename in os.listdir(data_directory):
 
         #break
         
+df.to_csv('dataframe_output/dataframe.csv')
 
 
 # Dataframe information
