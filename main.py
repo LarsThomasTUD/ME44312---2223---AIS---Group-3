@@ -1,9 +1,14 @@
+# %%
+
 import os
 import json
 import pandas as pd
 import matplotlib.pyplot as plt
 import plotly.express as px
+import Geohash
+import numpy as np
 
+# %%
 
 #Append all the json files to one dataframe
 data_directory = os.getcwd() + '\data'
@@ -17,10 +22,8 @@ for filename in os.listdir(data_directory):
         #print(file_path)
         with open(file_path, 'r') as file:
             data = json.loads(file.read())
-
         #flatten data
         flatten_data = pd.json_normalize(data, record_path = ['data'])
-
         #Add to df
         if df.empty:
             df = flatten_data
@@ -31,29 +34,83 @@ for filename in os.listdir(data_directory):
         
 df.to_csv('dataframe_output/dataframe.csv')
 
+# %% Port Area Definition
+min_latitude = 51.8
+max_latitude = 52.1
+min_longitude = 3.8
+max_longitude = 4.7
 
-# Dataframe information
-print(df)
+# Corner points of the port area
+area_lats = [min_latitude, min_latitude, max_latitude, max_latitude, min_latitude]
+area_lons = [min_longitude, max_longitude, max_longitude, min_longitude, min_longitude]
 
-df.info()
+# Select only AIS data from within Rotterdam port area
+df2 = df.loc[(df['navigation.location.lat']>= min_latitude) & (df['navigation.location.lat']<= max_latitude) & (df['navigation.location.long']>= min_longitude) & (df['navigation.location.long']<= max_longitude)] 
 
 
-# plot data
+# %% Convex hull
+from scipy.spatial import ConvexHull, convex_hull_plot_2d
+
+# create list with all coordinates 
+coordinates = df2[['navigation.location.lat', 'navigation.location.long']].to_numpy()
+
+hull = ConvexHull(coordinates) 
+
+# get the coordinates of the corner points
+corner_points = coordinates[hull.vertices]
+
+# make a list of the hull coordinates
+hull_lats = []
+hull_lons = []
+
+for i in corner_points:
+    hull_lats.append(i[0])
+    hull_lons.append(i[1])
+# add strating coordinates to enclose the hull area
+hull_lats.append(corner_points[0][0])
+hull_lons.append(corner_points[0][1])
+
+convex_hull_area = 0
+
+
+# %% Geohash 
+#add geohash column to data frame
+for index, row in df2.iterrows():
+    df2.loc[index, 'geohash'] = Geohash.encode(df2.loc[index, 'navigation.location.lat'], df2.loc[index, 'navigation.location.long'])
+
+geo_hash_area = 0
+
+
+# %% Plot (filtered) data
 # plotly plot opens in browser
-color_scale = [(0, 'orange'), (1,'red')]
+if True:
+    # AIS data
+    color_scale = [(0, 'orange'), (1,'red')]
+    fig = px.scatter_mapbox(df2, 
+                            lat="navigation.location.lat", 
+                            lon="navigation.location.long", 
+                            hover_name="vessel.name", 
+                            hover_data=["vessel.name", "navigation.time"],
+                            color="vessel.name",
+                            color_continuous_scale=color_scale,
+                            zoom=8, 
+                            height=800,
+                            width=1600)
+    
+    # Port area
+    fig2 = px.line_mapbox(lat=area_lats, lon=area_lons, color_discrete_sequence=["black"])
 
-fig = px.scatter_mapbox(df, 
-                        lat="navigation.location.lat", 
-                        lon="navigation.location.long", 
-                        hover_name="vessel.name", 
-                        hover_data=["vessel.name", "navigation.time"],
-                        color="vessel.name",
-                        color_continuous_scale=color_scale,
-                        zoom=8, 
-                        height=800,
-                        width=1600)
+    # Hull area
+    fig3 = px.line_mapbox(lat=hull_lats, lon=hull_lons)
 
-fig.update_layout(mapbox_style="open-street-map")
-fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
-fig.show()
+    # Add traces to fig 1
+    fig.add_trace(fig2.data[0]) # adds the line trace to the first figure
+    fig.add_trace(fig3.data[0]) # adds the line trace to the first figure
 
+    # Update layout
+    fig.update_layout(mapbox_style="open-street-map")
+    fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
+
+    fig.show()
+
+# %%
