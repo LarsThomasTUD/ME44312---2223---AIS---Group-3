@@ -30,7 +30,7 @@ for filename in os.listdir(data_directory):
         else:
             df = pd.concat([df, flatten_data], ignore_index=True)
 
-        #break
+        break
         
 df.to_csv('dataframe_output/dataframe.csv')
 
@@ -66,19 +66,56 @@ hull_lons = []
 for i in corner_points:
     hull_lats.append(i[0])
     hull_lons.append(i[1])
+
 # add strating coordinates to enclose the hull area
 hull_lats.append(corner_points[0][0])
 hull_lons.append(corner_points[0][1])
 
-convex_hull_area = 0
+
+# %% Convex hull area
+
+def reproject(latitude, longitude):
+    """Returns the x & y coordinates in meters using a sinusoidal projection"""
+    from math import pi, cos, radians
+    earth_radius = 6371009 # in meters
+    lat_dist = pi * earth_radius / 180.0
+
+    y = [lat * lat_dist for lat in latitude]
+    x = [long * lat_dist * cos(radians(lat)) 
+                for lat, long in zip(latitude, longitude)]
+    return x, y
+
+hull_lats_reprojected, hull_lons_reprojected = reproject(hull_lats, hull_lons)
+
+def area_of_polygon(x, y):
+    """Calculates the area of an arbitrary polygon given its verticies"""
+    area = 0.0
+    for i in range(-1, len(x)-1):
+        area += x[i] * (y[i+1] - y[i-1])
+    return abs(area) / 2.0
+
+convex_hull_area = area_of_polygon(hull_lats_reprojected, hull_lons_reprojected)
 
 
 # %% Geohash 
-#add geohash column to data frame
+#add geohash column to data frame, precision 7
 for index, row in df2.iterrows():
-    df2.loc[index, 'geohash'] = Geohash.encode(df2.loc[index, 'navigation.location.lat'], df2.loc[index, 'navigation.location.long'])
+    df2.loc[index, 'geohash'] = Geohash.encode(df2.loc[index, 'navigation.location.lat'], df2.loc[index, 'navigation.location.long'])[0:7]
 
-geo_hash_area = 0
+
+# %% Gehash area
+
+geohash_list = []
+
+for item in df2['geohash']:
+    if item not in geohash_list:
+        geohash_list.append(item)
+
+# Geohash area with precision 7 is equal to 153m * 153m
+
+geohash_area = len(geohash_list) * (153*153)
+
+print('geohash_area covers ', geohash_area / convex_hull_area, ' percent of hull area' )
 
 
 # %% Plot (filtered) data
