@@ -153,12 +153,9 @@ for unique_date in unique_dates:
         fig.add_trace(fig2.data[0]) # adds the line trace to the first figure
         fig.add_trace(fig3.data[0]) # adds the line trace to the first figure
 
-        # Give a title
-        fig.update_layout(title=str(unique_date))
-
         # Update layout
         fig.update_layout(
-                title='My Mapbox Plot',
+                title=str(unique_date),
                 mapbox=dict(
                     accesstoken='your_token_here',
                     style='open-street-map', # set mapbox style here
