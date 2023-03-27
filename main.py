@@ -166,7 +166,7 @@ for unique_date in unique_dates:
             )
 
     	# Save figure
-        fig.write_image(os.getcwd() + '/output/figures/' + str(unique_date) + '.png')
+        fig.write_image(os.getcwd() + '/output/figures/' + str(unique_date) + '.png', scale=8)
         #fig.show()
 
 # Save results to output location 
