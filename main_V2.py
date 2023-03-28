@@ -202,7 +202,7 @@ for snapshot_name, snapshot_df in snapshot_dfs.items():
 
         # Update layout
         fig.update_layout(
-                title=str(snapshot_name + '; ' + str(len(snapshot_df)) + ' locations'),
+                title=str(snapshot_name + '; ' + str(len(snapshot_df)) + ' vessel locations, ' + str(convex_hull_area) + 'm2 convex hull area, ' + str(geohash_area) + 'm2 geohash area, ' + str(average_proximity) + 'm average vessel proximity ') ,
                 mapbox=dict(
                     accesstoken='your_token_here',
                     style='open-street-map', # set mapbox style here
@@ -267,3 +267,4 @@ if False:
     #fig.write_image(os.getcwd() + '/output/figures/' + str(unique_date) + '.png')
     #fig.write_image(os.getcwd() + '/output/figures/' + str(unique_date) + '.png')
     fig.show()
+# %%
