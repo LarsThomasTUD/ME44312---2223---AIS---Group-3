@@ -3,6 +3,7 @@ import os
 import json
 import pandas as pd
 import matplotlib.pyplot as plt
+import plotly.figure_factory as ff
 import plotly.express as px
 import plotly.io as pio
 import Geohash
@@ -176,19 +177,19 @@ for snapshot_name, snapshot_df in snapshot_dfs.items():
         color_scale = [(0, 'orange'), (1,'red')]
         snapshot_df['dummy_column_for_size'] = 1.
 
-        fig = px.scatter_mapbox(snapshot_df, 
-                                lat="navigation.location.lat", 
-                                lon="navigation.location.long", 
-                                hover_name="index", 
-                                hover_data=["index", "vessel.name", "navigation.time"],
-                                color="index",
-                                color_continuous_scale=color_scale,
-                                zoom=8, 
-                                height=800,
-                                width=1600, 
-                                size = 'dummy_column_for_size',
-                                size_max = 10)
-    
+        fig = ff.create_hexbin_mapbox(
+            data_frame=snapshot_df, 
+            lat="navigation.location.lat", 
+            lon="navigation.location.long",  
+            nx_hexagon=15, 
+            opacity=0.8, 
+            zoom=8, 
+            height=800,
+            width=1600, 
+            labels={"color": "Vessel Count"},
+            min_count=1  # set min_count to 1 to hide empty hexagons
+        )
+  
         
         # Port area
         fig2 = px.line_mapbox(lat=area_lats, lon=area_lons, color_discrete_sequence=["black"])
@@ -228,19 +229,32 @@ if False:
     color_scale = [(0, 'orange'), (1,'red')]
     snapshot_df['dummy_column_for_size'] = 1.
 
-    fig = px.scatter_mapbox(snapshot_df, 
-                            lat="navigation.location.lat", 
-                            lon="navigation.location.long", 
-                            hover_name="index", 
-                            hover_data=["index", "vessel.name", "navigation.time"],
-                            color="index",
-                            color_continuous_scale=color_scale,
-                            zoom=8, 
-                            height=800,
-                            width=1600, 
-                            size = 'dummy_column_for_size',
-                            size_max = 10)
-    
+#    fig = px.scatter_mapbox(snapshot_df, 
+#                            lat="navigation.location.lat", 
+#                            lon="navigation.location.long", 
+#                            hover_name="index", 
+#                            hover_data=["index", "vessel.name", "navigation.time"],
+#                            color="index",
+#                            color_continuous_scale=color_scale,
+#                            zoom=8, 
+#                            height=800,
+#                            width=1600, 
+#                            size = 'dummy_column_for_size',
+#                            size_max = 10)
+
+    fig = ff.create_hexbin_mapbox(
+        data_frame=snapshot_df, 
+        lat="navigation.location.lat", 
+        lon="navigation.location.long",  
+        nx_hexagon=15, 
+        opacity=0.8, 
+        zoom=8, 
+        height=800,
+        width=1600, 
+        labels={"color": "Vessel Count"},
+        min_count=1  # set min_count to 1 to hide empty hexagons
+    )
+
     # Port area
     fig2 = px.line_mapbox(lat=area_lats, lon=area_lons, color_discrete_sequence=["black"])
 
@@ -266,5 +280,49 @@ if False:
     # Save figure
     #fig.write_image(os.getcwd() + '/output/figures/' + str(unique_date) + '.png')
     #fig.write_image(os.getcwd() + '/output/figures/' + str(unique_date) + '.png')
+    fig.show()
+# %%
+
+if False:
+    color_scale = [
+        [0, 'rgb(0, 0, 255)'],    # blue
+        [0.5, 'rgb(255, 255, 255)'], # white
+        [1, 'rgb(255, 0, 0)']      # red
+    ]
+
+    fig = ff.create_hexbin_mapbox(
+        data_frame=snapshot_df, 
+        lat="navigation.location.lat", 
+        lon="navigation.location.long",
+        nx_hexagon=25, 
+        opacity=0.8, 
+        labels={"color": "Vessel Count"},
+        min_count=1,  # set min_count to 1 to hide empty hexagons
+        color_continuous_scale=color_scale, # set custom color scale
+    )
+    fig.update_layout(
+            title=str(snapshot_name),
+            coloraxis_colorbar=dict(
+                title="Point Count",
+                tickmode = "array",
+                tickvals=[1, 25, 50, 75, 100],
+                ticktext=["1", "25", "50", "75", "100"],
+                nticks= 5,
+                dtick=25,
+                lenmode="pixels",
+                len=200,
+                yanchor="middle",
+                y=0.5,
+                xanchor="left",
+                x=1.02
+            ),
+            mapbox=dict(
+                accesstoken='your_token_here',
+                style='open-street-map', # set mapbox style here
+                center=dict(lat=51.951897, lon=4.263340),
+                zoom=10 # set zoom level here
+            ),
+            margin={"r":20,"t":40,"l":20,"b":0} # set margin here
+        )
     fig.show()
 # %%
