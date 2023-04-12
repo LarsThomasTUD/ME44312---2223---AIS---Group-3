@@ -92,6 +92,10 @@ for i in (100, 200, 300, 400, 500, 600):
         if os.path.exists(snapshot_location):
             pass
         else:
+            # If a figure exists but the data is updated remove the figure
+            figure_path = os.getcwd() + '/output/experiment_' + str(i) + '/figures/' + str(snapshot_name) + '.png'
+            if os.path.exists(figure_path):
+                os.remove(figure_path)
             # Determine the number of rows to select randomly
             num_rows = i
             snapshot_df = df_filtered.sample(n=num_rows)
@@ -219,7 +223,7 @@ for run in runs:
 
         # Plot (filtered) data
         # plotly plot opens in browser
-        if True:
+        if False:
             # Remove vessel.name as index
             snapshot_df = snapshot_df.reset_index()
 
@@ -350,7 +354,9 @@ for run in runs:
 
             # Create a DataFrame with the data points and their labels
             results['2D_Cluster_K' + str(numberOfClusters)] = labels
-            #results['2D_Cluster_K' + str(numberOfClusters) + '_Centroid'] = centroids
+
+            # Assign the centroids to the centroid column in the results dataframe
+            results['2D_Cluster_K' + str(numberOfClusters) + '_Centroid'] = centroids[labels].tolist()
 
             # Create a scatter plot using Matplotlib
             fig, ax = plt.subplots()
@@ -393,7 +399,6 @@ for run in runs:
 
             # Create a DataFrame with the data points and their labels
             results['3D_Cluster_K' + str(numberOfClusters)] = labels
-            #results['3D_Cluster_K' + str(numberOfClusters) + '_Centroid'] = centroids[labels]
 
             # Assign the centroids to the centroid column in the results dataframe
             results['3D_Cluster_K' + str(numberOfClusters) + '_Centroid'] = centroids[labels].tolist()
@@ -416,7 +421,6 @@ for run in runs:
             # Add black crosses for the centroids#ax.scatter(centroids[:, 0], centroids[:, 1], centroids[:, 2], marker='x', s=100, linewidths=2, c='black')
             ax.scatter(centroids[:, 0], centroids[:, 1], centroids[:, 2], marker='x', s=100, linewidths=2, color='black', alpha=1.0)
 
-
             # Create a legend
             legend1 = ax.legend(*scatter.legend_elements(), title='Cluster', loc='upper left')
             ax.add_artist(legend1)
@@ -429,3 +433,6 @@ for run in runs:
     results.to_csv(os.getcwd() + '/output/' + run + '/results/' + run + '_results.csv', sep='}', index=True)
     
     # %%
+
+
+print(results)
