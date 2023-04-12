@@ -58,11 +58,8 @@ for index, row in df_filtered.iterrows():
 
 # %% Create snapshot
 snapshot_names = []
-for i in range(1, 3):
-    snapshot_names.append('base_snapshot_' + str(i))
-
-#snapshot_names.append('snapshot_not_congested')
-#snapshot_names.append('snapshot_congested')
+for i in range(1, 51):
+    snapshot_names.append('base_snapshot_' + f"{i:02d}")
 
 snapshot_dfs = {}
 for snapshot_df in snapshot_names:
@@ -70,10 +67,12 @@ for snapshot_df in snapshot_names:
     snapshot_location = 'snapshot_data/base/' + snapshot_name + '.csv'
     #Only create a new snapshot if it does not exist already 
     if os.path.exists(snapshot_location):
-        snapshot_df = pd.read_csv(snapshot_location)
-        # Reset the index of the new dataframe
-        snapshot_df = snapshot_df.reset_index(drop=True)
+        pass
     else:
+        # If a figure exists but the data is updated remove the figure
+        figure_path = os.getcwd() + '/output/base/figures/' + str(snapshot_name) + '.png'
+        if os.path.exists(figure_path):
+            os.remove(figure_path)
         # Determine the number of rows to select randomly
         num_rows = random.randint(100, 600)
         snapshot_df = df_filtered.sample(n=num_rows)
@@ -82,21 +81,16 @@ for snapshot_df in snapshot_names:
         # Write snapshot to snapshot_data file 
         snapshot_df.to_csv(snapshot_location)
 
-    snapshot_dfs[snapshot_name] = snapshot_df
-
-
 for i in (100, 200, 300, 400, 500, 600):
     snapshot_names_experiment = []
-    for j in range(1, 3):
-        snapshot_names_experiment.append('experiment_' + str(i) + '_snapshot_' + str(j))
+    for j in range(1, 51):
+        snapshot_names_experiment.append('experiment_' + str(i) + '_snapshot_' + f"{j:02d}")
     for snapshot_df in snapshot_names_experiment:
         snapshot_name = snapshot_df
         snapshot_location = 'snapshot_data/experiment_' + str(i) + '/' + snapshot_name + '.csv'
         #Only create a new snapshot if it does not exist already 
         if os.path.exists(snapshot_location):
-            snapshot_df = pd.read_csv(snapshot_location)
-            # Reset the index of the new dataframe
-            snapshot_df = snapshot_df.reset_index(drop=True)
+            pass
         else:
             # Determine the number of rows to select randomly
             num_rows = i
@@ -106,12 +100,10 @@ for i in (100, 200, 300, 400, 500, 600):
             # Write snapshot to snapshot_data file 
             snapshot_df.to_csv(snapshot_location)
 
-        snapshot_dfs[snapshot_name] = snapshot_df
-
-
 
 # %% Iterate for each snapshot
-runs = ['base', 'experiment_100', 'experiment_200']
+runs = ['base', 'experiment_100', 'experiment_200', 'experiment_300', 'experiment_400', 'experiment_500', 'experiment_600']
+#runs = ['base']
 for run in runs:
     print(run)
     # specify the path of the location you want to search
@@ -119,7 +111,6 @@ for run in runs:
 
     # use a list comprehension to get all CSV filenames in the directory
     csv_files = [f for f in os.listdir(os.getcwd() + path) if f.endswith('.csv')]
-
     snapshot_dfs = {}
     snapshot_names = []
 
@@ -223,6 +214,9 @@ for run in runs:
         geohash_area = len(geohash_list) * (153*153)
         results.loc[snapshot_name, 'geohash_area'] = geohash_area
 
+        # Add number of vessels
+        results.loc[snapshot_name, 'vessel_locations'] = len(snapshot_df)
+
         # Plot (filtered) data
         # plotly plot opens in browser
         if True:
@@ -240,7 +234,7 @@ for run in runs:
                 nx_hexagon=20, 
                 opacity=0.8, 
                 zoom=8, 
-                height=800,
+                height=880,
                 width=1600, 
                 labels={"color": "Vessel Count"},
                 min_count=1  # set min_count to 1 to hide empty hexagons
@@ -258,72 +252,180 @@ for run in runs:
 
             # Update layout
             fig.update_layout(
-                    title=str(snapshot_name + '; ' + str(len(snapshot_df)) + ' vessel locations, ' + str(convex_hull_area) + 'm2 convex hull area, ' + str(geohash_area) + 'm2 geohash area, ' + str(average_proximity) + 'm average vessel proximity ') ,
-                    mapbox=dict(
-                        accesstoken='your_token_here',
-                        style='open-street-map', # set mapbox style here
-                        center=dict(lat=51.951897, lon=4.263340),
-                        zoom=10 # set zoom level here
-                    ),
-                    margin={"r":20,"t":40,"l":20,"b":0} # set margin here
+                title={
+                'text': '<span style="font-size: 30px"><b>' + snapshot_name + '</b></span>' + '<br>' + '<span style="font-size: 20px">' + str(len(snapshot_df)) + ' vessel locations; ' + "{:,.2f}".format(convex_hull_area) + ' m^2 convex hull area; ' + "{:,.2f}".format(geohash_area) + ' m^2 geohash area; ' + "{:,.2f}".format(average_proximity) + ' m average vessel proximity </span>',
+                'y':0.95,
+                'x':0.5,
+                'xanchor': 'center',
+                'yanchor': 'top',
+                'font': dict(size=25, color='black')
+                },
+                mapbox=dict(
+                    accesstoken='your_token_here',
+                    style='open-street-map', # set mapbox style here
+                    center=dict(lat=51.951897, lon=4.263340),
+                    zoom=10 # set zoom level here
+                ),
+                margin={"r":20,"t":90,"l":20,"b":20} # set margin here
+            )
+            
+            fig.update_layout(
+                template="plotly_white", # use a light background color for the plot
+                hoverlabel=dict( # set the font size for the hover label text
+                    font_size=20
                 )
+            )
+
+            fig.update_layout(
+                font=dict(size=18) # set the font size for all other text
+            )
+
+            fig.update_layout(
+                # set the font size for the legend text using CSS styles
+                xaxis=dict(
+                    tickfont=dict(size=15),
+                    titlefont=dict(size=15),
+                    hoverformat='.2f'
+                ),
+                yaxis=dict(
+                    tickfont=dict(size=15),
+                    titlefont=dict(size=15),
+                    hoverformat='.2f'
+                ),
+                legend=dict(
+                    font=dict(size=20)
+                )
+            )
+
 
             # Save figure
-            fig.write_image(os.getcwd() + '/output/' + run + '/figures/' + str(snapshot_name) + '.png', scale=4)
+            if os.path.isfile(os.getcwd() + '/output/' + run + '/figures/' + str(snapshot_name) + '.png'):
+                pass
+            else:
+                fig.write_image(os.getcwd() + '/output/' + run + '/figures/' + str(snapshot_name) + '.png', scale=1)
+            
             #fig.show()
 
-    # 
+    # Calucate
     results['SpComplexity'] = 0
     results['SpDensity'] = 0
+    results['SpCriticality'] = 0
 
     for i in range(len(results)):
         results['SpComplexity'][i] = (1 / results['average_proximity'][i]) * (1 / results['convex_hull_area'][i])
         results['SpDensity'][i] = (1 / results['geohash_area'][i]) * (1 / results['convex_hull_area'][i])
+        results['SpCriticality'][i] = results['vessel_locations'][i]
 
     max_SpComplexity = results['SpComplexity'].max()
     max_SpDensity = results['SpDensity'].max()
+    max_SpCriticality = results['SpCriticality'].max()
 
     for i in range(len(results)):
         results['SpComplexity'][i] = results['SpComplexity'][i] / max_SpComplexity
         results['SpDensity'][i] = results['SpDensity'][i] / max_SpDensity
-
-    # Save results to output location 
-    results.to_csv(os.getcwd() + '/output/' + run + '/results/' + run + '_results.csv', index=True)
+        results['SpCriticality'][i] = results['SpCriticality'][i] / max_SpCriticality
 
 
-# %%
     # Clustering
     SpComplexity = results['SpComplexity']
     SpDensity = results['SpDensity']
+    SpCriticality = results['SpCriticality']
+
+    for numberOfClusters in range(2,6):
+        if True: # Clustering 2d
+            # Create an array of shape (n_samples, 2) where the first column is SpComplexity and the second column is SpDensity
+            X = np.column_stack((SpComplexity, SpDensity))
+
+            # Create a KMeans object with K=3 clusters
+            kmeans = KMeans(n_clusters=numberOfClusters)
+
+            # Fit the KMeans model to the data
+            kmeans.fit(X)
+
+            # Get the cluster labels for each data point
+            labels = kmeans.labels_
+
+            # Get the centroids of each cluster
+            centroids = kmeans.cluster_centers_
+
+            # Create a DataFrame with the data points and their labels
+            results['2D_Cluster_K' + str(numberOfClusters)] = labels
+            #results['2D_Cluster_K' + str(numberOfClusters) + '_Centroid'] = centroids
+
+            # Create a scatter plot using Matplotlib
+            fig, ax = plt.subplots()
+            scatter = ax.scatter(SpComplexity, SpDensity, c=labels, cmap='viridis')
+            ax.set_title(run + ' 2D K-means clustering K=' + str(numberOfClusters))
+            ax.set_xlabel('SpComplexity')
+            ax.set_ylabel('SpDensity')
+
+            # Set the axis limits to 0-1
+            ax.set_xlim([-0.2,1.1])
+            ax.set_ylim([-0.1,1.1])
+
+            # Add black crosses for the centroids
+            ax.scatter(centroids[:, 0], centroids[:, 1], marker='x', s=100, linewidths=2, color='black')
+
+            # Create a legend
+            legend1 = ax.legend(*scatter.legend_elements(), title='Cluster', loc='upper left')
+            ax.add_artist(legend1)
+
+            # Save the plot to a file and show it
+            plt.savefig(os.getcwd() + '/output/' + run + '/clusters/' + str(run) + '_K' + str(numberOfClusters) + '_2D_clusters.png', dpi=300)
+            #plt.show()
 
 
-    # Create an array of shape (n_samples, 2) where the first column is SpComplexity and the second column is SpDensity
-    X = np.column_stack((SpComplexity, SpDensity))
+        if True: # Clustering 3D
+            # Create an array of shape (n_samples, 3) with SpComplexity, SpDensity and SpCriticality
+            X = np.column_stack((SpComplexity, SpDensity, SpCriticality))
 
-    # Create a KMeans object with K=3 clusters
-    kmeans = KMeans(n_clusters=3)
+            # Create a KMeans object with K=3 clusters
+            kmeans = KMeans(n_clusters=numberOfClusters)
 
-    # Fit the KMeans model to the data
-    kmeans.fit(X)
+            # Fit the KMeans model to the data
+            kmeans.fit(X)
 
-    # Get the cluster labels for each data point
-    labels = kmeans.labels_
+            # Get the cluster labels for each data point
+            labels = kmeans.labels_
 
-    # Get the centroids of each cluster
-    centroids = kmeans.cluster_centers_ 
+            # Get the centroids of each cluster
+            centroids = kmeans.cluster_centers_ 
 
-    # Create a DataFrame with the data points and their labels
-    results['Cluster'] = labels
+            # Create a DataFrame with the data points and their labels
+            results['3D_Cluster_K' + str(numberOfClusters)] = labels
+            #results['3D_Cluster_K' + str(numberOfClusters) + '_Centroid'] = centroids[labels]
 
-    # Create a scatter plot using Plotly Express
-    fig = px.scatter(results, x='SpComplexity', y='SpDensity', color='Cluster', 
-                    title='K-means clustering', hover_name = results.index, hover_data=['Cluster'], 
-                    template='plotly_white')
+            # Assign the centroids to the centroid column in the results dataframe
+            results['3D_Cluster_K' + str(numberOfClusters) + '_Centroid'] = centroids[labels].tolist()
 
-    # Add black crosses for the centroids
-    fig.add_scatter(x=centroids[:, 0], y=centroids[:, 1], mode='markers', 
-                    marker=dict(symbol='x', size=10, color='black'))
+            # Create a 3D scatter plot using matplotlib
+            fig = plt.figure()
+            ax = fig.add_subplot(111, projection='3d')
+            ax.scatter(SpComplexity, SpDensity, SpCriticality, c=labels, cmap='viridis', alpha = 1.0)
+            ax.set_xlabel('SpComplexity')
+            ax.set_ylabel('SpDensity')
+            ax.set_zlabel('SpCriticality')
 
-    # Show the plot
-    fig.show()
+            # Set the axis limits to 0-1
+            ax.set_xlim([-0.1,1.1])
+            ax.set_ylim([-0.1,1.1])
+            ax.set_zlim([-0.1,1.1])
+
+            ax.set_title(run + ' 3D K-means clustering K=' + str(numberOfClusters))
+
+            # Add black crosses for the centroids#ax.scatter(centroids[:, 0], centroids[:, 1], centroids[:, 2], marker='x', s=100, linewidths=2, c='black')
+            ax.scatter(centroids[:, 0], centroids[:, 1], centroids[:, 2], marker='x', s=100, linewidths=2, color='black', alpha=1.0)
+
+
+            # Create a legend
+            legend1 = ax.legend(*scatter.legend_elements(), title='Cluster', loc='upper left')
+            ax.add_artist(legend1)
+
+            # Show the plot
+            plt.savefig(os.getcwd() + '/output/' + run + '/clusters/' + str(run) + '_K' + str(numberOfClusters) + '_3D_clusters.png', dpi=300)
+            #plt.show()
+
+    # Save results to output location 
+    results.to_csv(os.getcwd() + '/output/' + run + '/results/' + run + '_results.csv', sep='}', index=True)
+    
     # %%
