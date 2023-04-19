@@ -1,4 +1,12 @@
-# %%
+"""
+Created on 12-04-2023
+Last updated on 19-04-2023
+Version: V4
+
+@author: karbman, lkoetsier, jlinders, lmolkenboer, fmureau
+"""
+
+# %% Import packages
 import os
 import json
 import pandas as pd
@@ -14,11 +22,13 @@ from sklearn.cluster import KMeans
 import math
 import random
 
-# %% Append all the json files to one dataframe
-
-if os.path.exists('dataframe_output/dataframe.csv'):
-    df = pd.read_csv('dataframe_output/dataframe.csv')
+# %% Data preperation
+# Check if the data is already prepared and saved in a csv file in the githup folder
+if os.path.exists('data_prepared/dataframe.csv'):
+    # If data is already prepared use the data from the csv file in the dataframe
+    df = pd.read_csv('data_prepared/dataframe.csv')
 else:
+    # If the data is not yet prepared, append all the json files to one dataframe
     data_directory = os.getcwd() + '\data'
     df = pd.DataFrame
     for filename in os.listdir(data_directory):
@@ -35,7 +45,8 @@ else:
                 df = flatten_data
             else:
                 df = pd.concat([df, flatten_data], ignore_index=True)
-    df.to_csv('dataframe_output/dataframe.csv')
+    # Save the appended data as a csv file in the github folder, so it can be used for further iterations. 
+    df.to_csv('data_prepared/dataframe.csv')
 
 # %% Data filters
 # Port Area Definition
@@ -51,16 +62,17 @@ area_lons = [min_longitude, max_longitude, max_longitude, min_longitude, min_lon
 # Select only AIS data from within Rotterdam port area
 df_filtered = df.loc[(df['navigation.location.lat']>= min_latitude) & (df['navigation.location.lat']<= max_latitude) & (df['navigation.location.long']>= min_longitude) & (df['navigation.location.long']<= max_longitude)] 
 
-# Add geohash
-# add geohash column to data frame, precision 7
+# Add geohash column to data frame, precision 7
 for index, row in df_filtered.iterrows():
     df_filtered.loc[index, 'geohash'] = Geohash.encode(df_filtered.loc[index, 'navigation.location.lat'], df_filtered.loc[index, 'navigation.location.long'])[0:7]
 
-# %% Create snapshot
+# %% Create snapshots
+# Generate the snapshot names for the base case
 snapshot_names = []
 for i in range(1, 51):
     snapshot_names.append('base_snapshot_' + f"{i:02d}")
 
+# Create snapshots dataframes for each generated base snapshot name
 snapshot_dfs = {}
 for snapshot_df in snapshot_names:
     snapshot_name = snapshot_df
@@ -78,13 +90,17 @@ for snapshot_df in snapshot_names:
         snapshot_df = df_filtered.sample(n=num_rows)
         # Reset the index of the new dataframe
         snapshot_df = snapshot_df.reset_index(drop=True)
-        # Write snapshot to snapshot_data file 
+        # Write snapshot to snapshot_data file so it can be used for next iterations
         snapshot_df.to_csv(snapshot_location)
 
+# Create snapshots for each experiment
 for i in (100, 200, 300, 400, 500, 600):
+    # Generate the snapshot names for the experiment
     snapshot_names_experiment = []
     for j in range(1, 51):
         snapshot_names_experiment.append('experiment_' + str(i) + '_snapshot_' + f"{j:02d}")
+
+    # Create snapshots dataframes for each generated experiment snapshot name
     for snapshot_df in snapshot_names_experiment:
         snapshot_name = snapshot_df
         snapshot_location = 'snapshot_data/experiment_' + str(i) + '/' + snapshot_name + '.csv'
@@ -101,13 +117,58 @@ for i in (100, 200, 300, 400, 500, 600):
             snapshot_df = df_filtered.sample(n=num_rows)
             # Reset the index of the new dataframe
             snapshot_df = snapshot_df.reset_index(drop=True)
-            # Write snapshot to snapshot_data file 
+            # Write snapshot to snapshot_data file so it can be used for next iterations
             snapshot_df.to_csv(snapshot_location)
 
+# %% Define functions 
+# Define reproject function used to calculate the area of a convex hull
+def reproject(latitude, longitude):
+    """Returns the x & y coordinates in meters using a sinusoidal projection"""
+    from math import pi, cos, radians
+    earth_radius = 6371009 # in meters
+    lat_dist = pi * earth_radius / 180.0
 
-# %% Iterate for each snapshot
+    y = [lat * lat_dist for lat in latitude]
+    x = [long * lat_dist * cos(radians(lat)) 
+                for lat, long in zip(latitude, longitude)]
+    return x, y
+
+# Define area of polygon function to calculate the area of a convex
+def area_of_polygon(x, y):
+    """Calculates the area of an arbitrary polygon given its verticies"""
+    area = 0.0
+    for i in range(-1, len(x)-1):
+        area += x[i] * (y[i+1] - y[i-1])
+    return abs(area) / 2.0
+
+# Define haversine function to calcualte the distance between two sets of coordiantes
+def haversine(lat1, lon1, lat2, lon2):
+    """
+    Calculate the distance between two points on the surface of a sphere using the Haversine formula.
+    """
+    R = 6371009  # Earth's radius in meters
+
+    # Convert latitude and longitude coordinates from degrees to radians
+    lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
+
+    # Calculate the differences between the latitudes and longitudes
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+
+    # Calculate the Haversine formula
+    a = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    distance = R * c
+
+    return distance
+
+
+# %% Iterate for each snapshot of the base case and all experiments
+# Create a list with all the runs that need to be executed.
+# To run a specific run write i.e. runs = ['base'], to only run the base case
 runs = ['base', 'experiment_100', 'experiment_200', 'experiment_300', 'experiment_400', 'experiment_500', 'experiment_600']
-#runs = ['base']
+# runs = ['base']
+
 for run in runs:
     print(run)
     # specify the path of the location you want to search
@@ -115,10 +176,12 @@ for run in runs:
 
     # use a list comprehension to get all CSV filenames in the directory
     csv_files = [f for f in os.listdir(os.getcwd() + path) if f.endswith('.csv')]
+    
+    # Create an empty collection for dataframes and an empty list for snapshot names
     snapshot_dfs = {}
     snapshot_names = []
 
-    # print the CSV filenames
+    # Check all the csv_files for the specific run and add the dataframes and snapshot names to the dfs collection and shapshot names list 
     for csv_file in csv_files:
         snapshot_names.append(csv_file.replace('.csv', ''))
         snapshot_df = pd.read_csv('snapshot_data/' + run + '/' + csv_file)
@@ -126,17 +189,17 @@ for run in runs:
         snapshot_df = snapshot_df.reset_index(drop=True)
         snapshot_dfs[csv_file.replace('.csv', '')] = snapshot_df
 
-
-    # First create a return dataframe with the results
+    # First create a results dataframe with the results
     results = pd.DataFrame({'Snapshot': snapshot_names})
     results.set_index('Snapshot', inplace=True)
 
+    # Calculate the geospatial aggregation algorithms, port congestion indicators and generate a figure for each snapshot
     for snapshot_name, snapshot_df in snapshot_dfs.items():
-        # create list with all coordinates 
+        # create list with all coordinates to calculate the convex hull
         coordinates = snapshot_df[['navigation.location.lat', 'navigation.location.long']].to_numpy()
         hull = ConvexHull(coordinates) 
 
-        # get the coordinates of the corner points
+        # get the coordinates of the corner points from the convex hull
         corner_points = coordinates[hull.vertices]
 
         # make a list of the hull coordinates
@@ -146,57 +209,21 @@ for run in runs:
             hull_lats.append(i[0])
             hull_lons.append(i[1])
 
-        # add strating coordinates to enclose the hull area
+        # add starting coordinates to enclose the hull area
         hull_lats.append(corner_points[0][0])
         hull_lons.append(corner_points[0][1])
 
-        # Convex hull area
-        def reproject(latitude, longitude):
-            """Returns the x & y coordinates in meters using a sinusoidal projection"""
-            from math import pi, cos, radians
-            earth_radius = 6371009 # in meters
-            lat_dist = pi * earth_radius / 180.0
-
-            y = [lat * lat_dist for lat in latitude]
-            x = [long * lat_dist * cos(radians(lat)) 
-                        for lat, long in zip(latitude, longitude)]
-            return x, y
-
+        # Calcualate the convex hull area using the reproject and area of polygon functions
         hull_lats_reprojected, hull_lons_reprojected = reproject(hull_lats, hull_lons)
-
-        def area_of_polygon(x, y):
-            """Calculates the area of an arbitrary polygon given its verticies"""
-            area = 0.0
-            for i in range(-1, len(x)-1):
-                area += x[i] * (y[i+1] - y[i-1])
-            return abs(area) / 2.0
         convex_hull_area = area_of_polygon(hull_lats_reprojected, hull_lons_reprojected)
+
+        # Save convex hull area to the results dataframe 
         results.loc[snapshot_name, 'convex_hull_area'] = convex_hull_area
 
-        # Average vessel prosimity 
+        # Create a list of all the coordinates to calculate the average vessel proximity
         proximity_coordinates = snapshot_df[['navigation.location.lat', 'navigation.location.long']].to_numpy()
 
-        def haversine(lat1, lon1, lat2, lon2):
-            """
-            Calculate the distance between two points on the surface of a sphere using the Haversine formula.
-            """
-            R = 6371009  # Earth's radius in meters
-
-            # Convert latitude and longitude coordinates from degrees to radians
-            lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
-
-            # Calculate the differences between the latitudes and longitudes
-            dlat = lat2 - lat1
-            dlon = lon2 - lon1
-
-            # Calculate the Haversine formula
-            a = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
-            c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-            distance = R * c
-
-            return distance
-
-        # Calculate the distances between all pairs of coordinates
+        # Calculate the distances between all pairs of coordinates using the haversine funcation
         distances = []
         for i in range(len(proximity_coordinates)):
             for j in range(len(proximity_coordinates)):
@@ -206,9 +233,11 @@ for run in runs:
 
         # Calculate the average proximity
         average_proximity = sum(distances) / len(distances) 
+        
+        # Add the average vessel proximity to the results
         results.loc[snapshot_name, 'average_proximity'] = average_proximity
 
-        # Geohash area
+        # Append all the unique geohashes to a list to calculate the geohash area
         geohash_list = []
         for item in snapshot_df['geohash']:
             if item not in geohash_list:
@@ -216,21 +245,19 @@ for run in runs:
 
         # Geohash area with precision 7 is equal to 153m * 153m
         geohash_area = len(geohash_list) * (153*153)
+        
+        # Add the geohash area to the results
         results.loc[snapshot_name, 'geohash_area'] = geohash_area
 
-        # Add number of vessels
+        # Add number of vessels in snapshot to the results
         results.loc[snapshot_name, 'vessel_locations'] = len(snapshot_df)
 
-        # Plot (filtered) data
-        # plotly plot opens in browser
-        if False:
+        # If True, plot the snapshot in the port area using the plotly hexbin mapbox and save the figure to the github folder
+        if True:
             # Remove vessel.name as index
             snapshot_df = snapshot_df.reset_index()
 
-            # AIS data
-            color_scale = [(0, 'orange'), (1,'red')]
-            snapshot_df['dummy_column_for_size'] = 1.
-
+            # Generate figure
             fig = ff.create_hexbin_mapbox(
                 data_frame=snapshot_df, 
                 lat="navigation.location.lat", 
@@ -244,10 +271,10 @@ for run in runs:
                 min_count=1  # set min_count to 1 to hide empty hexagons
             )
             
-            # Port area
+            # Plot port area
             fig2 = px.line_mapbox(lat=area_lats, lon=area_lons, color_discrete_sequence=["black"])
 
-            # Hull area
+            # Plot hull convex 
             fig3 = px.line_mapbox(lat=hull_lats, lon=hull_lons)
 
             # Add traces to fig 1
@@ -301,8 +328,7 @@ for run in runs:
                 )
             )
 
-
-            # Save figure
+            # Save figure if it does not yet exist
             if os.path.isfile(os.getcwd() + '/output/' + run + '/figures/' + str(snapshot_name) + '.png'):
                 pass
             else:
@@ -310,37 +336,43 @@ for run in runs:
             
             #fig.show()
 
-    # Calucate
+    # Calucate port congestion indicators
+    # Create the columns in the results dataframe 
     results['SpComplexity'] = 0
     results['SpDensity'] = 0
     results['SpCriticality'] = 0
 
+    # Update the columns in the results database 
     for i in range(len(results)):
         results['SpComplexity'][i] = (1 / results['average_proximity'][i]) * (1 / results['convex_hull_area'][i])
         results['SpDensity'][i] = (1 / results['geohash_area'][i]) * (1 / results['convex_hull_area'][i])
         results['SpCriticality'][i] = results['vessel_locations'][i]
 
+    # Select the max value for each PCI
     max_SpComplexity = results['SpComplexity'].max()
     max_SpDensity = results['SpDensity'].max()
     max_SpCriticality = results['SpCriticality'].max()
 
+    # Normalise the PCI values
     for i in range(len(results)):
         results['SpComplexity'][i] = results['SpComplexity'][i] / max_SpComplexity
         results['SpDensity'][i] = results['SpDensity'][i] / max_SpDensity
         results['SpCriticality'][i] = results['SpCriticality'][i] / max_SpCriticality
 
 
-    # Clustering
+    # K-means clustering
+    # Select the PCI's for clustering 
     SpComplexity = results['SpComplexity']
     SpDensity = results['SpDensity']
     SpCriticality = results['SpCriticality']
 
+    # K-means clustering with 2 to 5 clusters
     for numberOfClusters in range(2,6):
         if True: # Clustering 2d
             # Create an array of shape (n_samples, 2) where the first column is SpComplexity and the second column is SpDensity
             X = np.column_stack((SpComplexity, SpDensity))
 
-            # Create a KMeans object with K=3 clusters
+            # Create a KMeans object with K=* clusters
             kmeans = KMeans(n_clusters=numberOfClusters)
 
             # Fit the KMeans model to the data
@@ -385,7 +417,7 @@ for run in runs:
             # Create an array of shape (n_samples, 3) with SpComplexity, SpDensity and SpCriticality
             X = np.column_stack((SpComplexity, SpDensity, SpCriticality))
 
-            # Create a KMeans object with K=3 clusters
+            # Create a KMeans object with K=* clusters
             kmeans = KMeans(n_clusters=numberOfClusters)
 
             # Fit the KMeans model to the data
@@ -432,7 +464,4 @@ for run in runs:
     # Save results to output location 
     results.to_csv(os.getcwd() + '/output/' + run + '/results/' + run + '_results.csv', sep='}', index=True)
     
-    # %%
-
-
-print(results)
+# %%
